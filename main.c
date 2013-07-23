@@ -37,6 +37,8 @@
 #define MAXLENGTH		2000
 #define LABELMAXSIZE	30
 
+#define NOTRELEVANT 0
+
 
 #define REGISTERINSTR(f) (getreg(&(f).line.chars[(f).pos]) != -1)
 
@@ -102,7 +104,7 @@ void verifylabels();
 Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark);
 int firstpass(FILE *asf, String fname);
 int getline(String *line, FILE *fp);
-int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc);
+int getdirection(int *labelc, Fextr fxtr, int dc, int *extlabelc);
 int getdata(int *labelc, Fextr fxtr, int dc);
 int getstring(int *labelc, Fextr fxtr, int dc);
 int getextern(int *labelc, Fextr fxtr, int dc, int *extlabelc);
@@ -196,7 +198,7 @@ int firstpass(FILE *asf, String fname) {
 	fxtr =  initfextr();
 	fxtr.filename = fname;
 
-	for (linec = extlabelc = labelc = ic = dc = 0; getline(&(fxtr.line), asf) != EOF; fxtr.line = initstring(), fxtr.linec++) {
+	for (linec = extlabelc = labelc = ic = dc = 0; getline(&(fxtr.line), asf) != EOF; fxtr.line = initstring()/*, fxtr.linec++*/) {
 		fxtr.pos =  0;
 		WHITESPACES(fxtr)
 
@@ -204,27 +206,23 @@ int firstpass(FILE *asf, String fname) {
 			SKIPFIRSTLABEL(fxtr)
 
 			if (fxtr.line.chars[fxtr.pos] == '.')
-				dc = getdirect(&labelc, fxtr, dc, &extlabelc);
+				dc = getdirection(&labelc, fxtr, dc, &extlabelc);
 			else
 				ic = getinstruction(&labelc, fxtr, ic);
 
-											printf("line = %d, dc = %d, ic = %d\n", fxtr.linec, dc, ic);
+											printf("linec = %d, dc = %d, ic = %d\tline: ~~%s~~\n", fxtr.linec, dc, ic, fxtr.line.chars);
 		}
 	}
 
-	for (i = 0; !emptylabel(ltbl[i]); i++) {
-		ltbl[i].address += BEGINNING;
-		if (ltbl[i].mark == data)
-			ltbl[i].address += ic;
-	}
+	for (i = 0; !emptylabel(ltbl[i]); i++)
+		ltbl[i].address += (ic * !ltbl[i].mark) + BEGINNING;
 
 	verifylabels();
 
-
-							for (i = 0; i < ic; i++)
+							/*for (i = 0; i < ic; i++)
 										printf("text %o\t%o\t%c\n", i + BEGINNING, IC[i].bits, IC[i].link);
 							for (i = 0; i < dc; i++)
-										printf("text %o\t%o\n", i + ic + BEGINNING, DC[i]);
+										printf("text %o\t%o\n", i + ic + BEGINNING, DC[i]);*/
 
 	return dc;
 }
@@ -259,7 +257,7 @@ void secondpass(FILE *asf, String fname, int dc) {
 
 	fseek(asf, 0L, SEEK_SET);
 
-	for (ic = 0; getline(&fxtr.line, asf) != EOF; fxtr.line = initstring(), fxtr.linec++) {
+	for (ic = 0; getline(&fxtr.line, asf) != EOF; fxtr.line = initstring()/*, fxtr.linec++*/) {
 		SKIPFIRSTLABEL(fxtr)
 		
 		if (fxtr.line.chars[fxtr.pos] == '\n' || fxtr.line.chars[0] == ';')
@@ -301,27 +299,27 @@ void secondpass(FILE *asf, String fname, int dc) {
 		fprintf(obfp, "text %o\t%o\n", i + ic + BEGINNING, DC[i]);
 }
 
-int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
+int getdirection(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
 	int i;
-	String direct;
+	String direction;
 
 	fxtr.pos++;
-	fxtr.pos += gettoken(fxtr.line, fxtr.pos, &direct, ' ', '\t', AFTERLAST);
+	fxtr.pos += gettoken(fxtr.line, fxtr.pos, &direction, ' ', '\t', AFTERLAST);
 
 	/*
 	for(i = 0, direct = initstring(); !EMPTY(line, linepos); direct.chars[i++] = line.chars[linepos++])
 		;
-	direct.chars[i] = '\0';
+	direction.chars[i] = '\0';
 	*/
 
-	for (i = 0; directionarr[i].func && strcmp(direct.chars, directionarr[i].type); i++)
+	for (i = 0; directionarr[i].func && strcmp(direction.chars, directionarr[i].type); i++)
 		;
 
-	if (!strcmp(direct.chars, ENTRY))
+	if (!strcmp(direction.chars, ENTRY))
 		return dc;
 
 	if (!directionarr[i].func) {
-		printf("(%d:%d) assembler: ~%s~ function not found\n", fxtr.linec, fxtr.pos, direct.chars);
+		printf("(%d:%d) assembler: ~%s~ function not found\n", fxtr.linec, fxtr.pos, direction.chars);
 		exit(1);
 	}
 
@@ -415,15 +413,17 @@ void getentry(Fextr fxtr, FILE *entfp) {
 }
 
 int getextern(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
+	Label lbl;
 	WHITESPACES(fxtr)
 
-	extltbl[(*extlabelc)] = getlabel(fxtr, 0, 0, data);
+	lbl = getlabel(fxtr, 0, NOTRELEVANT, data);
 
-	if (emptylabel(extltbl[(*extlabelc)])) {
+	if (emptylabel(lbl)) {
 		printf("(%d:%d) assembler: label exceeds maximum size or followed by junk\n", fxtr.linec, fxtr.pos);
 		exit(1);
 	}
-	(*extlabelc)++;
+
+	extltbl[(*extlabelc)++] = lbl;
 
 	return dc;
 }
@@ -713,7 +713,7 @@ void setaddress(Fextr fxtr, int ic, int next, FILE *extfp) {
 			fprintf(extfp, "%s\t%o\n", extltbl[i].name, ic + next);
 		}
 		else {
-			printf("%s:%d:%d assembler: label \"%s\" not found\n", fxtr.filename.chars, fxtr.linec, fxtr.pos, label.chars);
+			printf("%s\n%s:%d:%d assembler: label \"%s\" not found\n", fxtr.line.chars, fxtr.filename.chars, fxtr.linec, fxtr.pos, label.chars);
 			exit(1);
 		}
 	}
