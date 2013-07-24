@@ -47,63 +47,71 @@
 
 #define REGISTER(c) (getreg(c) != -1)
 
-#define EMPTY(f)	((f).line.chars[(f).pos] == ' ' || (f).line.chars[(f).pos] == '\t')
+#define EMPTY(f) ((f).line.chars[(f).pos] == ' ' || (f).line.chars[(f).pos] == '\t')
 
 #define SETBITS(ic, val, pos) IC[ic].bits |= setbits(val, pos)
 
-#define CHECKERR(re) if (err) return re;
+
+#define MARK(f) {										\
+	int k;												\
+														\
+	for (k = 0, printf("\t"); k < (f).pos; k++)			\
+		if ((f).line.chars[k] == '\t')					\
+			printf("\t");								\
+		else											\
+			printf(" ");								\
+														\
+	printf("^\n");										\
+}
 
 
-#define NODELIMITER(f) (					\
-			(f).line.chars[(f).pos] != ' '	\
-		 && (f).line.chars[(f).pos] != '\t'	\
-		 && (f).line.chars[(f).pos] != ':'	\
-		 && (f).line.chars[(f).pos] != '\n'	\
-		 && (f).line.chars[(f).pos] != '{'	\
-		 && (f).line.chars[(f).pos] != '}'	\
-		 && (f).line.chars[(f).pos] != ',')
+#define NODELIMITER(f) (				\
+	   (f).line.chars[(f).pos] != ' '	\
+	&& (f).line.chars[(f).pos] != '\t'	\
+	&& (f).line.chars[(f).pos] != ':'	\
+	&& (f).line.chars[(f).pos] != '\n'	\
+	&& (f).line.chars[(f).pos] != '{'	\
+	&& (f).line.chars[(f).pos] != '}'	\
+	&& (f).line.chars[(f).pos] != ',')
 
 
-#define WHITESPACES(f)			\
-			while (EMPTY(f))	\
-				(f).pos++;
+#define WHITESPACES(f)	\
+	while (EMPTY(f))	\
+		(f).pos++;
 
 
-#define EXPECTCHAR(f, c, re)						\
-			WHITESPACES(f)							\
-													\
-			if ((f).line.chars[(f).pos++] != c)	{	\
-				printf("%s:%d:%d assembler: missing %c\n", (f).filename.chars, (f).linec, (f).pos, c);	\
-				ERROR(re)							\
-			}										\
-													\
-			WHITESPACES(f)
+#define EXPECTCHAR(f, c)																								\
+	WHITESPACES(f)																										\
+																														\
+	if ((f).line.chars[(f).pos++] != c)	{																				\
+		printf("%s:%d:%d: assembler: missing %c\n\t%s", (f).filename.chars, (f).linec, (f).pos, c, (f).line.chars);		\
+		MARK(f)																											\
+		exit(0);	/* todo delete the exit */																			\
+		compile();																										\
+	}																													\
+																														\
+	WHITESPACES(f)
 
 
-#define ONEORZERO(f)																\
-			if ((f).line.chars[(f).pos] != '0' && (f).line.chars[(f).pos] != '1')	\
-				EXIT(f, "wrong type-dbl-comb assignment", 0)
+#define ONEORZERO(f)														\
+	if ((f).line.chars[(f).pos] != '0' && (f).line.chars[(f).pos] != '1')	\
+		EXIT(f, "wrong type-dbl-comb assignment")
 
 
-#define SKIPFIRSTLABEL(f) 													\
-			for (f.pos = 0; NODELIMITER(f); f.pos++) 						\
-				;															\
-																			\
-			(f).pos = (f).line.chars[(f).pos] == ':' ? (f).pos + 1 : 0;		\
-																			\
-			WHITESPACES(f)
+#define SKIPFIRSTLABEL(f) 											\
+	for (f.pos = 0; NODELIMITER(f); f.pos++) 						\
+		;															\
+																	\
+	(f).pos = (f).line.chars[(f).pos] == ':' ? (f).pos + 1 : 0;		\
+																	\
+	WHITESPACES(f)
 
 
-#define ERROR(re) {		\
-			err = 1;	\
-			return re;	\
-		}
-
-
-#define EXIT(f, s, returntype) {																	\
-			printf("%s:%d:%d assembler: %s\n", (f).filename.chars, (f).linec, (f).pos, s);	\
-			ERROR(returntype)																		\
-		}
+#define EXIT(f, s) {																						\
+	printf("%s:%d:%d: assembler: %s\n\t%s", (f).filename.chars, (f).linec, (f).pos, s, (f).line.chars);		\
+	MARK(f)																							\
+	compile();																								\
+}
 
 
 
@@ -114,7 +122,7 @@ void init();
 void secondpass(FILE *asf, String fname, int dc);
 void getentry(Fextr fxtr, FILE *entfp);
 void setaddress(Fextr fxtr, int ic, int next, FILE *extfp);
-void verifylabels();
+void verifylabels(Fextr fxtr);
 int firstpass(FILE *asf, String fname);
 int getline(String *line, FILE *fp);
 int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc);
@@ -173,9 +181,12 @@ char err;
 
 
 int main(int argc, char *argv[]) {
-	filecounter = argc - 1;
+	filecounter = --argc;
 
-	for(argc-- ;argc; argc--)
+/*	while (argc)
+		filenames[argc - 1] = tostring(argv[argc--]);*/
+
+	for (; argc; argc--)
 		filenames[argc - 1] = tostring(argv[argc]);
 
 	compile();
@@ -236,16 +247,13 @@ int firstpass(FILE *asf, String fname) {
 				dc = getdirect(&labelc, fxtr, dc, &extlabelc);
 			else
 				ic = getinstruction(&labelc, fxtr, ic);
-
-			CHECKERR(0)
 		}
 	}
 
 	for (i = 0; !emptylabel(ltbl[i]); i++)
 		ltbl[i].address += BEGINNING + ic * !(ltbl[i].mark);
 
-	verifylabels();
-	CHECKERR(0)
+	verifylabels(fxtr);
 
 	return dc;
 }
@@ -265,17 +273,17 @@ void secondpass(FILE *asf, String fname, int dc) {
 
 	if (!obfp) {
 		printf("assembler: could not open writable file %s\n", strcat(fname.chars, "ob"));
-		return;
+		compile();
 	}
 
 	if (!entfp) {
 		printf("assembler: could not open writable file %s\n", strcat(fname.chars, "ent"));
-		return;
+		compile();
 	}
 
 	if (!extfp) {
 		printf("assembler: could not open writable file %s\n", strcat(fname.chars, "ext"));
-		return;
+		compile();
 	}
 
 	fseek(asf, 0L, SEEK_SET);
@@ -288,7 +296,6 @@ void secondpass(FILE *asf, String fname, int dc) {
 		
 		if (fxtr.line.chars[fxtr.pos] == '.') {
 			getentry(fxtr, entfp);
-			CHECKERR(;)
 			continue;
 		}
 		
@@ -302,7 +309,6 @@ void secondpass(FILE *asf, String fname, int dc) {
 			continue;
 
 		next = setoperand(fxtr, ic, 1, extfp);
-		CHECKERR(;)
 
 		while (fxtr.line.chars[fxtr.pos] != ',' && fxtr.line.chars[fxtr.pos] != '\n')
 			fxtr.pos++;
@@ -316,7 +322,6 @@ void secondpass(FILE *asf, String fname, int dc) {
 		WHITESPACES(fxtr)
 		
 		next = setoperand(fxtr, ic, next, extfp);
-		CHECKERR(;)
 
 		ic += next;
 	}
@@ -341,8 +346,9 @@ int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
 		return dc;
 
 	if (!directionarr[i].func) {
-		printf("(%d:%d) assembler: ~%s~ function not found\n", fxtr.linec, fxtr.pos, direct.chars);
-		ERROR(0);
+		printf("%s:%d:%d: assembler: %s: direction not found\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, direct.chars, fxtr.line.chars);
+		MARK(fxtr)
+		compile();
 	}
 
 	return (*(directionarr[i].func))(labelc, fxtr, dc, extlabelc);
@@ -352,16 +358,14 @@ int getdata(int *labelc, Fextr fxtr, int dc) {
 	WHITESPACES(fxtr)
 
 	ltbl[*labelc] = getlabel(fxtr, 1, dc, data);
-	CHECKERR(0)
 	if (!emptylabel(ltbl[*labelc]))
 		(*labelc)++;
 
 	for (; fxtr.line.chars[fxtr.pos] != '\n'; dc++) {
 		DC[dc] = getnumber(&fxtr);
-		CHECKERR(0)
 
 		if (fabs(DC[dc]) > MASK / 2) {
-			EXIT(fxtr, "usage - number out of range", 0)
+			EXIT(fxtr, "usage - number out of range")
 		}
 		dc++;
 
@@ -370,7 +374,7 @@ int getdata(int *labelc, Fextr fxtr, int dc) {
 		if (fxtr.line.chars[fxtr.pos] == '\n')
 			return dc;
 		else {
-			EXPECTCHAR(fxtr, ',', 0)
+			EXPECTCHAR(fxtr, ',')
 		}
 	}
 
@@ -379,19 +383,18 @@ int getdata(int *labelc, Fextr fxtr, int dc) {
 
 int getstring(int *labelc, Fextr fxtr, int dc) {
 	ltbl[*labelc] = getlabel(fxtr, 1, dc, data);
-	CHECKERR(0)
 	if (!emptylabel(ltbl[*labelc]))
 		(*labelc)++;
 
 	WHITESPACES(fxtr)
 
-	EXPECTCHAR(fxtr, '"', 0)
+	EXPECTCHAR(fxtr, '"')
 
 	while(fxtr.line.chars[fxtr.pos] != '"' && fxtr.line.chars[fxtr.pos] != '\n')
 		DC[dc++] = fxtr.line.chars[fxtr.pos++];
 	DC[dc++] = 0;
 
-	EXPECTCHAR(fxtr, '"', 0)
+	EXPECTCHAR(fxtr, '"')
 
 	return dc;
 }
@@ -413,24 +416,26 @@ void getentry(Fextr fxtr, FILE *entfp) {
 		if (!emptylabel(ltbl[i]))
 			fprintf(entfp, "%s\t%o\n", ltbl[i].name, ltbl[i].address);
 		else {
-			printf("(%d:%d) assembler: \"%s\": label not found\n", fxtr.linec, fxtr.pos, label.chars);
-			ERROR(;)
+			printf("%s:%d:%d: assembler: %s: label not found\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, label.chars, fxtr.line.chars);
+			MARK(fxtr)
+			compile();
 		}
 
-		EXPECTCHAR(fxtr, '\n', ;)
+		EXPECTCHAR(fxtr, '\n')
 	}
 }
 
 int getextern(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
+	Label tmp;
+
 	WHITESPACES(fxtr)
 
-	extltbl[(*extlabelc)] = getlabel(fxtr, 0, NOTIMPORTANT, data);
-	CHECKERR(0)
-
-	if (emptylabel(extltbl[(*extlabelc)])) {
-		EXIT(fxtr, "label exceeds maximum size or followed by junk", 0)
+	tmp = getlabel(fxtr, 0, NOTIMPORTANT, data);
+	if (emptylabel(tmp)) {
+		EXIT(fxtr, "label exceeds maximum size or followed by junk")
 	}
-	(*extlabelc)++;
+
+	extltbl[(*extlabelc)++]  = tmp;
 
 	return dc;
 }
@@ -439,8 +444,6 @@ Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark) {
 	Label lbl;
 	int must;
 	String name;
-
-	CHECKERR(lbl)
 
 	if ((labelflag && mark == data) || !labelflag)
 		must = 1;
@@ -451,16 +454,17 @@ Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark) {
 
 	fxtr.pos += gettoken(fxtr.line, fxtr.pos, &name, ' ', '\t', '{', '}', ':', ',', '\n', AFTERLAST);
 	tocharptr(name, lbl.name, NAMELENGTH);
+
 	lbl.address = address;
 	lbl.mark = mark;
 
 	WHITESPACES(fxtr)
 
 	if (must && emptylabel(lbl))
-		EXIT(fxtr, "label expected", lbl)
+		EXIT(fxtr, "label expected")
 
 	if (lbl.name[0] && !isalpha(lbl.name[0]))
-		EXIT(fxtr, "elegal first char in label", lbl)
+		EXIT(fxtr, "illegal first char in label")
 
 
 	if ((labelflag && fxtr.line.chars[fxtr.pos] == ':') || (!labelflag && fxtr.line.chars[fxtr.pos] == '\n'))
@@ -474,7 +478,6 @@ int getinstruction(int *labelc, Fextr fxtr, int ic) {
 	char command[OPCODESIZE];
 
 	ltbl[*labelc] = getlabel(fxtr, 1, ic, code);
-	CHECKERR(0)
 	if (!emptylabel(ltbl[*labelc]))
 		(*labelc)++;
 
@@ -486,42 +489,41 @@ int getinstruction(int *labelc, Fextr fxtr, int ic) {
 		;
 
 	if (!opcode[i]) {
-		printf("%s:%d:%d assembler: command \"%s\" not found\n", fxtr.filename.chars, fxtr.linec, fxtr.pos, command);
-		ERROR(0);
+		printf("%s:%d:%d: assembler: %s: command not found\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, command, fxtr.line.chars);
+		MARK(fxtr)
+		compile();
 	}
 
 	SETBITS(ic, i, OPCODE);
-	EXPECTCHAR(fxtr, '/', 0)
+	EXPECTCHAR(fxtr, '/')
 
 	ONEORZERO(fxtr)
 	SETBITS(ic, fxtr.line.chars[fxtr.pos] - ASCIIZERO, TYPE);
 
 	if (fxtr.line.chars[fxtr.pos++] - ASCIIZERO) {
-		EXPECTCHAR(fxtr, '/', 0)
+		EXPECTCHAR(fxtr, '/')
 		SETBITS(ic, getcomb(&fxtr), COMB);
 	}
 
-	EXPECTCHAR(fxtr, ',', 0)
+	EXPECTCHAR(fxtr, ',')
 	SETBITS(ic, fxtr.line.chars[fxtr.pos++] - ASCIIZERO, DBL);
 
 	WHITESPACES(fxtr)
 
 	if (i < RTS && i != LEA && i >= NOT)
 		l = countwords(&fxtr, ic, DESTINATION);
-	CHECKERR(0)
 
 	if (i < NOT || i == LEA) {
 		l = countwords(&fxtr, ic, ORIGIN);
-		CHECKERR(0)
+
 		while (fxtr.line.chars[fxtr.pos] != ',' && fxtr.line.chars[fxtr.pos] != '\n')
 			fxtr.pos++;
 
-		EXPECTCHAR(fxtr, ',', 0)
+		EXPECTCHAR(fxtr, ',')
 		l += countwords(&fxtr, ic, DESTINATION);
-		CHECKERR(0)
 	}
 
-	EXPECTCHAR(fxtr, '\n', 0)
+	EXPECTCHAR(fxtr, '\n')
 	IC[ic].link = absolute;
 
 	return ++ic + l;
@@ -563,7 +565,7 @@ int getcomb(Fextr *fxtr) {
 	i = (*fxtr).line.chars[(*fxtr).pos++] - ASCIIZERO;
 	i *= 2;
 	
-	EXPECTCHAR(*fxtr, '/', 0)
+	EXPECTCHAR(*fxtr, '/')
 	
 	ONEORZERO(*fxtr)
 	i += (*fxtr).line.chars[(*fxtr).pos++] - ASCIIZERO;
@@ -580,6 +582,8 @@ int countlabelwords(int ic, Fextr *fxtr, int wordpos) {
 	WHITESPACES(*fxtr)
 
 	if ((*fxtr).line.chars[(*fxtr).pos] == '{') {
+		WHITESPACES(*fxtr)
+
 		SETBITS(ic, INDEXADDR, wordpos + ADDR);
 		(*fxtr).pos++;
 
@@ -588,7 +592,10 @@ int countlabelwords(int ic, Fextr *fxtr, int wordpos) {
 
 			while (NODELIMITER(*fxtr))
 				(*fxtr).pos++;
-			EXPECTCHAR(*fxtr, '}', 0)
+
+							printf("(if reg)%d:%d: char: ~~%c~~; value = %d\n", (*fxtr).linec, (*fxtr).pos, (*fxtr).line.chars[(*fxtr).pos], (*fxtr).line.chars[(*fxtr).pos]);
+
+			EXPECTCHAR(*fxtr, '}')
 
 			return 1;
 		}
@@ -598,7 +605,13 @@ int countlabelwords(int ic, Fextr *fxtr, int wordpos) {
 
 		while (NODELIMITER(*fxtr))
 			(*fxtr).pos++;
-		EXPECTCHAR(*fxtr, '}', 0)
+
+							printf("(if *)%d:%d: char: ~~%c~~; value = %d\n",
+									(*fxtr).linec, (*fxtr).pos - 1, (*fxtr).line.chars[(*fxtr).pos - 1], (*fxtr).line.chars[(*fxtr).pos - 1]);
+							printf("(if *)%d:%d: char: ~~%c~~; value = %d\n",
+									(*fxtr).linec, (*fxtr).pos, (*fxtr).line.chars[(*fxtr).pos], (*fxtr).line.chars[(*fxtr).pos]);
+
+		EXPECTCHAR(*fxtr, '}')
 
 		return 2;
 	}
@@ -615,7 +628,7 @@ int countwords(Fextr *fxtr, int ic, int wordpos) {
 		SETBITS(ic, IMADDR, wordpos + ADDR);
 
 		if (wordpos == DESTINATION)
-			EXIT(*fxtr, "destination operand", 0)
+			EXIT(*fxtr, "destination operand")
 
 		while (NODELIMITER(*fxtr))
 			(*fxtr).pos++;
@@ -641,8 +654,6 @@ int countwords(Fextr *fxtr, int ic, int wordpos) {
 }
 
 int setoperand(Fextr fxtr, int ic, int next, FILE *extfp) {
-	CHECKERR(0)
-
 	if (fxtr.line.chars[fxtr.pos] == '#') {
 
 		IC[ic + next].bits = getnumber(&fxtr);
@@ -689,7 +700,6 @@ void setaddress(Fextr fxtr, int ic, int next, FILE *extfp) {
 		WHITESPACES(fxtr)
 	}
 
-
 	fxtr.pos += gettoken(fxtr.line, fxtr.pos, &label, ' ', '\t', '\n', '{', '}', ':', ',', AFTERLAST);
 
 	for (i = 0; i < MAXLENGTH && !emptylabel(ltbl[i]) && strcmp(label.chars, ltbl[i].name); i++)
@@ -709,8 +719,9 @@ void setaddress(Fextr fxtr, int ic, int next, FILE *extfp) {
 			fprintf(extfp, "%s\t%o\n", extltbl[i].name, BEGINNING + ic + next);
 		}
 		else {
-			printf("%s:%d:%d assembler: label \"%s\" not found\n", fxtr.filename.chars, fxtr.linec, fxtr.pos, label.chars);
-			ERROR(;)
+			printf("%s:%d:%d: assembler: %s: label not found\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, label.chars, fxtr.line.chars);
+			MARK(fxtr)
+			compile();
 		}
 	}
 }
@@ -726,7 +737,7 @@ int getnumber(Fextr *fxtr) {
 		number.chars[i++] = (*fxtr).line.chars[(*fxtr).pos++];
 
 	if (!(i && isdigit(number.chars[i - 1]))) {
-		EXIT(*fxtr, "invalid number input", 0)
+		EXIT(*fxtr, "invalid number input")
 	}
 
 	number.chars[i] = '\0';
@@ -734,44 +745,50 @@ int getnumber(Fextr *fxtr) {
 	return  atoi(number.chars);
 }
 
-void verifylabels() {
+void verifylabels(Fextr fxtr) {
 	int i, j;
 
 	for (i = 0; !emptylabel(ltbl[i]) && i < MAXLENGTH; i++) {
 		for (j = i + 1; !emptylabel(ltbl[j]) && j < MAXLENGTH; j++)
 			if (!strcmp(ltbl[i].name, ltbl[j].name)) {
-				printf("assembler: %s: double declaration of\n", ltbl[j].name);
-				ERROR(;)
+				printf("%s:%d:%d: assembler: %s: double declaration\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, ltbl[j].name, fxtr.line.chars);
+				MARK(fxtr)
+				compile();
 			}
 				
 		for (j = 0; !emptylabel(extltbl[j]) && j < MAXLENGTH; j++)
 			if (!strcmp(ltbl[i].name, extltbl[j].name)) {
-				printf("assembler: %s: double declaration of\n", ltbl[j].name);
-				ERROR(;)
+				printf("%s:%d:%d: assembler: %s: double declaration\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, ltbl[j].name, fxtr.line.chars);
+				MARK(fxtr)
+				compile();
 			}
 				
 		for (j = 0; opcode[j]; j++)
 			if (!strcmp(ltbl[i].name, opcode[j])) {
-				printf("assembler: label: invalid name 1 %s\n", ltbl[j].name);
-				ERROR(;)
+				printf("%s:%d:%d: assembler: label: invalid name 1 %s\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, ltbl[j].name, fxtr.line.chars);
+				MARK(fxtr)
+				compile();
 			}
 
 		if (REGISTER(ltbl[i].name)) {
-			printf("assembler: label: invalid name 2 %s\n", ltbl[j].name);
-			ERROR(;)
+			printf("%s:%d:%d: assembler: label: invalid name 2 %s\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, ltbl[j].name, fxtr.line.chars);
+			MARK(fxtr)
+			compile();
 		}
 	}
 
 	for (i = 0; !emptylabel(extltbl[i]) && i < MAXLENGTH; i++) {
 		for (j = 0; opcode[j]; j++)
 			if (!strcmp(extltbl[i].name, opcode[j])) {
-				printf("assembler: label: invalid name 3 %s\n", ltbl[j].name);
-				ERROR(;)
+				printf("%s:%d:%d: assembler: label: invalid name 3 %s\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, ltbl[j].name, fxtr.line.chars);
+				MARK(fxtr)
+				compile();
 			}
 
 		if (REGISTER(extltbl[i].name)) {
-			printf("assembler: label: invalid name 4 %s\n", ltbl[j].name);
-			ERROR(;)
+			printf("%s:%d:%d: assembler: label: invalid name 4 %s\n\t%s", fxtr.filename.chars, fxtr.linec, fxtr.pos, ltbl[j].name, fxtr.line.chars);
+			MARK(fxtr)
+			compile();
 		}
 	}
 }
