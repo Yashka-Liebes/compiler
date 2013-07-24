@@ -80,16 +80,21 @@
 		(f).pos++;
 
 
-#define EXPECTCHAR(f, c)																								\
-	WHITESPACES(f)																										\
-																														\
-	if ((f).line.chars[(f).pos++] != c)	{																				\
-		printf("%s:%d:%d: assembler: missing %c\n\t%s", (f).filename.chars, (f).linec, (f).pos, c, (f).line.chars);		\
-		MARK(f)																											\
-		exit(0);	/* todo delete the exit */																			\
-		compile();																										\
-	}																													\
-																														\
+#define EXPECTCHAR(f, c)																						\
+	WHITESPACES(f)																								\
+																												\
+	if ((f).line.chars[(f).pos++] != c)	{																		\
+		if (c == '\n')																							\
+			printf("%s:%d:%d: assembler: unexpected character %c\n\t%s",										\
+						(f).filename.chars, (f).linec, (f).pos, (f).line.chars[(f).pos - 1], (f).line.chars);	\
+		else 																									\
+			printf("%s:%d:%d: assembler: missing %c\n\t%s",														\
+						(f).filename.chars, (f).linec, (f).pos, c, (f).line.chars);								\
+																												\
+		MARK(f)																									\
+		compile();																								\
+	}																											\
+																												\
 	WHITESPACES(f)
 
 
@@ -582,10 +587,10 @@ int countlabelwords(int ic, Fextr *fxtr, int wordpos) {
 	WHITESPACES(*fxtr)
 
 	if ((*fxtr).line.chars[(*fxtr).pos] == '{') {
-		WHITESPACES(*fxtr)
-
 		SETBITS(ic, INDEXADDR, wordpos + ADDR);
 		(*fxtr).pos++;
+
+		WHITESPACES(*fxtr)
 
 		if ((reg = getreg(&(*fxtr).line.chars[(*fxtr).pos])) != -1) {
 			SETBITS(ic, reg, wordpos);
@@ -593,7 +598,7 @@ int countlabelwords(int ic, Fextr *fxtr, int wordpos) {
 			while (NODELIMITER(*fxtr))
 				(*fxtr).pos++;
 
-							printf("(if reg)%d:%d: char: ~~%c~~; value = %d\n", (*fxtr).linec, (*fxtr).pos, (*fxtr).line.chars[(*fxtr).pos], (*fxtr).line.chars[(*fxtr).pos]);
+							/*printf("(reg)%d:%d: char: ~~%c~~; value = %d\n", (*fxtr).linec, (*fxtr).pos, (*fxtr).line.chars[(*fxtr).pos], (*fxtr).line.chars[(*fxtr).pos]);*/
 
 			EXPECTCHAR(*fxtr, '}')
 
@@ -606,10 +611,10 @@ int countlabelwords(int ic, Fextr *fxtr, int wordpos) {
 		while (NODELIMITER(*fxtr))
 			(*fxtr).pos++;
 
-							printf("(if *)%d:%d: char: ~~%c~~; value = %d\n",
+							/*printf("(not reg)%d:%d: char: ~~%c~~; value = %d\n",
 									(*fxtr).linec, (*fxtr).pos - 1, (*fxtr).line.chars[(*fxtr).pos - 1], (*fxtr).line.chars[(*fxtr).pos - 1]);
-							printf("(if *)%d:%d: char: ~~%c~~; value = %d\n",
-									(*fxtr).linec, (*fxtr).pos, (*fxtr).line.chars[(*fxtr).pos], (*fxtr).line.chars[(*fxtr).pos]);
+							printf("(not reg)%d:%d: char: ~~%c~~; value = %d\n",
+									(*fxtr).linec, (*fxtr).pos, (*fxtr).line.chars[(*fxtr).pos], (*fxtr).line.chars[(*fxtr).pos]);*/
 
 		EXPECTCHAR(*fxtr, '}')
 
