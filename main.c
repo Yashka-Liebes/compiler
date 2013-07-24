@@ -30,6 +30,10 @@
 #define LEA 	6
 #define RTS 	14
 
+#define NOMOREFILES -1
+#define NOTIMPORTANT 0
+#define MAXFILESAMOUNT 200
+
 #define BEGINNING		100
 #define MASK			524288
 #define ASCIIZERO 		48
@@ -104,13 +108,13 @@
 
 
 /* function prototype */
-void compile(String fname);
+Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark);
+void compile();
 void init();
 void secondpass(FILE *asf, String fname, int dc);
 void getentry(Fextr fxtr, FILE *entfp);
 void setaddress(Fextr fxtr, int ic, int next, FILE *extfp);
 void verifylabels();
-Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark);
 int firstpass(FILE *asf, String fname);
 int getline(String *line, FILE *fp);
 int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc);
@@ -162,11 +166,13 @@ const char *opcode[] = {
 
 Word IC[MAXLENGTH];
 Label ltbl[MAXLENGTH], extltbl[MAXLENGTH];
-int DC[MAXLENGTH];
+String filenames[MAXFILESAMOUNT];
+int DC[MAXLENGTH], filecounter;
 char err;
 
 
 
+/*
 int main(int argc, char *argv[]) {
 	while (--argc) {
 		err = 0;
@@ -190,6 +196,40 @@ void compile(String fname) {
 	}
 
 	secondpass(fp, fname, firstpass(fp, fname));
+}
+*/
+
+int main(int argc, char *argv[]) {
+	filecounter = argc - 1;
+
+	for(argc-- ;argc; argc--)
+		filenames[argc - 1] = tostring(argv[argc]);
+
+	compile();
+
+	return 0;
+}
+
+void compile() {
+	FILE *fp;
+	String temp;
+
+	filecounter--;
+	if (filecounter == NOMOREFILES)
+		exit(0);
+
+	init();
+	temp = filenames[filecounter];
+
+	fp = fopen(strcat(temp.chars, ".as"), "r");
+	if (!fp) {
+		printf("assembler: could not open ro file %s\n", temp.chars);
+		return;
+	}
+
+	secondpass(fp, filenames[filecounter], firstpass(fp, filenames[filecounter]));
+
+	compile();
 }
 
 void init() {
@@ -411,7 +451,7 @@ void getentry(Fextr fxtr, FILE *entfp) {
 int getextern(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
 	WHITESPACES(fxtr)
 
-	extltbl[(*extlabelc)] = getlabel(fxtr, 0, 0, data);
+	extltbl[(*extlabelc)] = getlabel(fxtr, 0, NOTIMPORTANT, data);
 	CHECKERR(0)
 
 	if (emptylabel(extltbl[(*extlabelc)])) {
