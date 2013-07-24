@@ -41,7 +41,7 @@ int instring(String source, int sourceindex, String pattern) {
 	return i < LENGTH && pattern.chars[i] ? 0 : 1;
 }
 
-int gettoken(String source, int pos, String *tocen, int delimiter, ...) {
+int gettocen(String source, int pos, String *tocen, int delimiter, ...) {
 	String dels;
 	va_list p;
 	int i, cnt;

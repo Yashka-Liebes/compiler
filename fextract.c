@@ -2,18 +2,15 @@
 
 
 
-const Fextr EMPTY_FXTR = {
-		{{0}},
-		{{0}},
-		0,
-		0
+const Fextr EMPTY_FEXTR = {
+	{{0}},
+	{{0}},
+	0,
+	0
 };
 
 
 
-
 Fextr initfextr() {
-	return EMPTY_FXTR;
+	return EMPTY_FEXTR;
 }
-
-

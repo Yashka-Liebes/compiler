@@ -21,7 +21,7 @@ extern const String ZERO_STR;
 /* returns String initialized with zeros */
 String initstring();
 String tostring(char* source);
-int gettoken(String source, int pos, String *tocen, int delimiter, ...);
+int gettocen(String source, int pos, String *tocen, int delimiter, ...);
 int instring(String source, int sourceindex, String pattern);
 void tocharptr(String source, char *p, int maxptrsize);
 

@@ -1,5 +1,5 @@
-#ifndef FEXTRACT_H_
-#define FEXTRACT_H_
+#ifndef LINE_H_
+#define LINE_H_
 
 
 
@@ -10,13 +10,9 @@
 typedef struct {
 	String line;
 	String filename;
-	int linec;
 	int pos;
+	int linec;
 } Fextr;
-
-
-
-extern const Fextr EMPTY_FXTR;
 
 
 
@@ -24,4 +20,8 @@ Fextr initfextr();
 
 
 
-#endif /* FEXTRACT_H_ */
+extern const Fextr EMPTY_FEXTR;
+
+
+
+#endif /* LINE_H_ */
