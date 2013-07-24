@@ -332,10 +332,12 @@ void secondpass(FILE *asf, String fname, int dc) {
 	}
 
 	for (i = 0; i < ic; i++)
-		fprintf(obfp, "text %o\t%07o\t%c\n", i + BEGINNING, IC[i].bits, IC[i].link);
+		fprintf(obfp, "%o\t%07o\t%c\n", i + BEGINNING, IC[i].bits, IC[i].link);
+		/*fprintf(obfp, "text %o\t%07o\t%c\n", i + BEGINNING, IC[i].bits, IC[i].link);*/
 
 	for (i = 0; i < dc; i++)
-		fprintf(obfp, "text %o\t%07o\n", i + ic + BEGINNING, DC[i]);
+		fprintf(obfp, "%o\t%07o\n", i + ic + BEGINNING, DC[i]);
+		/*fprintf(obfp, "text %o\t%07o\n", i + ic + BEGINNING, DC[i]);*/
 }
 
 int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc) {

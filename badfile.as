@@ -5,9 +5,8 @@
 	.extern COUNT
 
 
-STRADD: 	.data	 	12,+3,-69
+STRADD: 	.data	 	123
 STR: 		.string 	"abcdef"
-STR2:		.string		"wa wa wi wa"
 LASTCHAR: 	.data 		0
 LEN:		.data 		0
 k: 		.data		0
