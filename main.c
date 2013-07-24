@@ -10,16 +10,6 @@
 
 
 
-/************************
- *
- *
- *
- *
- * 
- ************************/
-
-
-
 #define COMB    	0
 #define DESTINATION 2
 #define ORIGIN   	7
@@ -55,65 +45,61 @@
 
 #define EMPTY(f)	((f).line.chars[(f).pos] == ' ' || (f).line.chars[(f).pos] == '\t')
 
-
-#define NODELIMITER(f) (				\
-		   (f).line.chars[(f).pos] != ' '	\
-		&& (f).line.chars[(f).pos] != '\t'	\
-		&& (f).line.chars[(f).pos] != ':'	\
-		&& (f).line.chars[(f).pos] != '\n'	\
-		&& (f).line.chars[(f).pos] != '{'	\
-		&& (f).line.chars[(f).pos] != '}'	\
-		&& (f).line.chars[(f).pos] != ',')
-
-
-#define WHITESPACES(f)			\
-			while (EMPTY(f))		\
-				(f).pos++;
-
-
-#define EXPECTCHAR(f, c, re)								\
-			WHITESPACES(f)							\
-														\
-			if ((f).line.chars[(f).pos++] != c)	{				\
-				printf("%s:%d:%d assembler: missing %c\n", (f).filename.chars, (f).linec, (f).pos, c);	\
-				ERROR(re)								\
-			}											\
-														\
-			WHITESPACES(f)
-
-
-#define ONEORZERO(f)																\
-			if ((f).line.chars[(f).pos] != '0' && (f).line.chars[(f).pos] != '1') {				\
-				EXIT(f, "wrong type-dbl-comb assignment", 0)												\
-			}
-
-
-#define SETBITS(ic, val, pos)					\
-			IC[ic].bits |= setbits(val, pos)
-
-#define SKIPFIRSTLABEL(f) 				\
-	for (f.pos = 0; NODELIMITER(f); f.pos++) 	\
-		;									\
-		(f).pos = (f).line.chars[(f).pos] == ':' ? (f).pos + 1 : 0;	\
-											\
-		WHITESPACES(f)
-
-#define ERROR(re) {	\
-	err = 1;	\
-	return re;	\
-	}
-
-#define EXIT(f, s, re)           {\
-	printf("%s:%d:%d assembler: %s\n", (f).filename.chars, (f).linec, (f).pos, s);\
-		ERROR(re)\
-		}
+#define SETBITS(ic, val, pos) IC[ic].bits |= setbits(val, pos)
 
 #define CHECKERR(re) if (err) return re;
 
 
+#define NODELIMITER(f) (					\
+			(f).line.chars[(f).pos] != ' '	\
+		 && (f).line.chars[(f).pos] != '\t'	\
+		 && (f).line.chars[(f).pos] != ':'	\
+		 && (f).line.chars[(f).pos] != '\n'	\
+		 && (f).line.chars[(f).pos] != '{'	\
+		 && (f).line.chars[(f).pos] != '}'	\
+		 && (f).line.chars[(f).pos] != ',')
 
 
+#define WHITESPACES(f)			\
+			while (EMPTY(f))	\
+				(f).pos++;
 
+
+#define EXPECTCHAR(f, c, re)						\
+			WHITESPACES(f)							\
+													\
+			if ((f).line.chars[(f).pos++] != c)	{	\
+				printf("%s:%d:%d assembler: missing %c\n", (f).filename.chars, (f).linec, (f).pos, c);	\
+				ERROR(re)							\
+			}										\
+													\
+			WHITESPACES(f)
+
+
+#define ONEORZERO(f)																\
+			if ((f).line.chars[(f).pos] != '0' && (f).line.chars[(f).pos] != '1')	\
+				EXIT(f, "wrong type-dbl-comb assignment", 0)
+
+
+#define SKIPFIRSTLABEL(f) 													\
+			for (f.pos = 0; NODELIMITER(f); f.pos++) 						\
+				;															\
+																			\
+			(f).pos = (f).line.chars[(f).pos] == ':' ? (f).pos + 1 : 0;		\
+																			\
+			WHITESPACES(f)
+
+
+#define ERROR(re) {		\
+			err = 1;	\
+			return re;	\
+		}
+
+
+#define EXIT(f, s, returntype) {																	\
+			printf("%s:%d:%d assembler: %s\n", (f).filename.chars, (f).linec, (f).pos, s);	\
+			ERROR(returntype)																		\
+		}
 
 
 
@@ -150,6 +136,7 @@ struct {
 		{"extern", getextern},
 		{"notexist", NULL},
 };
+
 
 const char *opcode[] = {
 		"mov",
@@ -236,6 +223,7 @@ int firstpass(FILE *asf, String fname) {
 				dc = getdirect(&labelc, fxtr, dc, &extlabelc);
 			else
 				ic = getinstruction(&labelc, fxtr, ic);
+
 			CHECKERR(0)
 		}
 	}
@@ -316,6 +304,7 @@ void secondpass(FILE *asf, String fname, int dc) {
 		
 		next = setoperand(fxtr, ic, next, extfp);
 		CHECKERR(;)
+
 		ic += next;
 	}
 
