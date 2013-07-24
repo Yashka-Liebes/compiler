@@ -172,33 +172,6 @@ char err;
 
 
 
-/*
-int main(int argc, char *argv[]) {
-	while (--argc) {
-		err = 0;
-		compile(tostring(argv[argc]));
-	}
-
-	return 1;
-}
-
-void compile(String fname) {
-	FILE *fp;
-	String temp;
-
-	init();
-	temp = fname;
-
-	fp = fopen(strcat(temp.chars, ".as"), "r");
-	if (!fp) {
-		printf("assembler: could not open ro file %s\n", temp.chars);
-		return;
-	}
-
-	secondpass(fp, fname, firstpass(fp, fname));
-}
-*/
-
 int main(int argc, char *argv[]) {
 	filecounter = argc - 1;
 
