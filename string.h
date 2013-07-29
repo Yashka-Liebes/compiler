@@ -3,7 +3,7 @@
 
 
 
-#define LENGTH 2000
+#define LENGTH 300
 #define AFTERLAST -1
 
 

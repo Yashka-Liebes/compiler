@@ -32,16 +32,15 @@
 #define EXTERNAL 			0
 #define DIRECTIONMAXSIZE	80
 #define BEGINNING			100
-#define MASK				524288
+#define MASK				1048575
 #define ASCIIZERO 			48
 #define MAXLENGTH			2000
 #define LABELMAXSIZE		30
-#define OPCODESIZE 			5
+#define NUMBEROFREGS		8
 
 
-#define REGISTERINSTR(f) (getreg(&(f).line.chars[(f).pos]) != -1)
 
-#define REGISTER(c) (getreg(c) != -1)
+#define REGISTER(f) (getreg(f) != -1)
 
 #define EMPTY(f) ((f).line.chars[(f).pos] == ' ' || (f).line.chars[(f).pos] == '\t')
 
@@ -68,20 +67,24 @@
 	&& (f).line.chars[(f).pos] != '}'	\
 	&& (f).line.chars[(f).pos] != ',')
 
-#define WHITESPACES(f)	while (EMPTY(f))	(f).pos++;
+#define WHITESPACES(f)	for(; EMPTY(f); (f).pos++);
 
 #define EXPECTCHAR(f, c) {																						\
 	WHITESPACES(f)																								\
 	if ((f).line.chars[(f).pos++] != c)	{																		\
+		(f).pos--;																								\
 		if (c == '\n')																							\
-			printf("%s:%d:%d: assembler: unexpected character %c\n\t%s",										\
-						(f).filename.chars, (f).linec, (f).pos, (f).line.chars[(f).pos - 1], (f).line.chars);	\
+			printf("%s:%d:%d: assembler: unexpected character -> %c\n\t%s",										\
+						(f).filename.chars, (f).linec, (f).pos, (f).line.chars[(f).pos], (f).line.chars);		\
 		else 																									\
-			printf("%s:%d:%d: assembler: missing %c\n\t%s",														\
+			printf("%s:%d:%d: assembler: missing expected -> %c\n\t%s",											\
 						(f).filename.chars, (f).linec, (f).pos, c, (f).line.chars);								\
 																												\
 		MARK(f)																									\
-		compilenext();																								\
+		CLOSEFILES																								\
+		REMOVEFILES																								\
+		compilenext();																							\
+		exit(1);																								\
 	}																											\
 	WHITESPACES(f)																								\
 }
@@ -101,8 +104,17 @@
 	printf("%s:%d:%d: assembler: %s\n\t%s", (f).filename.chars, (f).linec, (f).pos, s, (f).line.chars);		\
 	MARK(f)																									\
 	CLOSEFILES																								\
-	compilenext();																								\
-	exit(0);																								\
+	REMOVEFILES																								\
+	compilenext();																							\
+	exit(1);																								\
+}
+
+#define LABELEXIT(s, file, label) {		\
+	printf("%s: %s: " #s, file, label);	\
+	CLOSEFILES							\
+	REMOVEFILES							\
+	compilenext();						\
+	exit(1);							\
 }
 
 #define CLOSEFILES	{	\
@@ -112,13 +124,13 @@
 	fclose(extfp);		\
 }
 
-#define LABELEXIT(s, file, label) {		\
-	CLOSEFILES							\
-	printf("%s: %s: " #s, file, label);	\
-	compilenext();						\
-	exit(0);							\
+#define REMOVEFILES	{										\
+	String obfname, entfname, extfname;						\
+	obfname = entfname = extfname = tostring(*nextf);		\
+	remove(strcat(obfname.chars, ".ob"));					\
+	remove(strcat(entfname.chars, ".ent"));					\
+	remove(strcat(extfname.chars, ".ext"));					\
 }
-
 
 
 
@@ -137,7 +149,7 @@ int getdata(int *labelc, Fextr fxtr, int dc);
 int getstring(int *labelc, Fextr fxtr, int dc);
 int getextern(int *labelc, Fextr fxtr, int dc, int *extlabelc);
 int getinstruction(int *labelc, Fextr fxtr, int ic);
-int getreg(char *line);
+int getreg(Fextr fxtr);
 int getcomb(Fextr *fxtr);
 int countlabelwords(int ic, Fextr *fxtr, int wordpos);
 int countwords(Fextr *fxtr, int ic, int wordpos);
@@ -156,27 +168,11 @@ struct {
 		{"notexist", NULL},
 };
 
+const char *opcode[] = {"mov", "cmp", "add", "sub", "not", "clr", "lea", "inc",
+								"dec", "jmp", "bne", "red", "prn", "jsr", "rts", "stop", 0};
 
-const char *opcode[] = {
-		"mov",
-		"cmp",
-		"add",
-		"sub",
-		"not",
-		"clr",
-		"lea",
-		"inc",
-		"dec",
-		"jmp",
-		"bne",
-		"red",
-		"prn",
-		"jsr",
-		"rts",
-		"stop",
-		0
-};
-
+const char *registers[] = {"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
+							"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", 0};
 
 Word IC[MAXLENGTH];
 Label ltbl[MAXLENGTH], extltbl[MAXLENGTH];
@@ -329,9 +325,7 @@ int getdata(int *labelc, Fextr fxtr, int dc) {
 
 	for (; fxtr.line.chars[fxtr.pos] != '\n' && fxtr.pos < DIRECTIONMAXSIZE; dc++) {
 		DC[dc] = getnumber(&fxtr);
-		if (fabs(DC[dc]) > MASK / 2)
-			EXIT(fxtr, "usage - number out of range")
-
+	
 		dc++;
 		WHITESPACES(fxtr)
 
@@ -421,6 +415,9 @@ Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark) {
 	temp = gettoken(fxtr.line, fxtr.pos, &name, ' ', '\t', '{', '}', ':', ',', '\n', AFTERLAST);
 	tocharptr(name, lbl.name, NAMELENGTH);
 
+	if (REGISTER(fxtr))
+		EXIT(fxtr, "invalid label name")
+
 	lbl.address = address;
 	lbl.mark = mark;
 	WHITESPACES(fxtr)
@@ -441,22 +438,27 @@ Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark) {
 
 int getinstruction(int *labelc, Fextr fxtr, int ic) {
 	int i, l;
-	char command[OPCODESIZE];
+	String command;
 
 	ltbl[*labelc] = getlabel(fxtr, 1, ic, code);
 	if (!emptylabel(ltbl[*labelc]))
 		(*labelc)++;
 
-	for (l = i = 0; fxtr.line.chars[fxtr.pos] != '/' && i < OPCODESIZE - 1 && !EMPTY(fxtr); command[i++] = fxtr.line.chars[fxtr.pos++])
+	l = gettoken(fxtr.line, fxtr.pos, &command, ' ', '\t', '/', '\n', AFTERLAST);
+
+/*
+	for (i = 0; fxtr.line.chars[fxtr.pos] != '/' && fxtr.line.chars[fxtr.pos] != '\n' && i < OPCODESIZE - 1 && !EMPTY(fxtr); command[i++] = fxtr.line.chars[fxtr.pos++])
 		;
 	command[i] = '\0';
+	l = i;*/
 
-	for (i = 0; opcode[i] && strcmp(opcode[i], command); i++)
+	for (i = 0; opcode[i] && strcmp(opcode[i], command.chars); i++)
 		;
 
 	if (!opcode[i])
 		EXIT(fxtr, "command not found")
 
+	fxtr.pos += l;
 	SETBITS(ic, i, OPCODE);
 	EXPECTCHAR(fxtr, '/')
 	ONEORZERO(fxtr)
@@ -469,6 +471,8 @@ int getinstruction(int *labelc, Fextr fxtr, int ic) {
 	EXPECTCHAR(fxtr, ',')
 	SETBITS(ic, fxtr.line.chars[fxtr.pos++] - ASCIIZERO, DBL);
 	WHITESPACES(fxtr)
+
+	l = 0;
 
 	if (i < RTS && i != LEA && i >= NOT)
 		l = countwords(&fxtr, ic, DESTINATION);
@@ -507,16 +511,19 @@ int getline(String *line, FILE *fp) {
 	return i;
 }
 
-int getreg(char *c) {
+int getreg(Fextr fxtr) {
 	int i;
+	String reg;
 
-	if (*c == 'r' || *c == 'R') {
-		i = *(++c) - ASCIIZERO;
-		if (i >= 0 && i < 8 && (*(++c) == '\t' || *c == ' ' || *c == '}' || *c == '\0' || *c == '\n' || *c == '\r' || *c == ','))
-			return i;
-	}
+	gettoken(fxtr.line, fxtr.pos, &reg, ' ', '\t', '}', '\n', ',', ':', AFTERLAST);
 
-	return -1;
+	for (i = 0; registers[i] && strcmp(registers[i], reg.chars); i++)
+			;
+
+	if (!registers[i])
+		return -1;
+
+	return i % NUMBEROFREGS;
 }
 
 int getcomb(Fextr *fxtr) {
@@ -542,7 +549,7 @@ int countlabelwords(int ic, Fextr *fxtr, int wordpos) {
 	if ((*fxtr).line.chars[(*fxtr).pos] == '{') {
 		SETBITS(ic, INDEXADDR, wordpos + ADDR);
 		(*fxtr).pos++;
-		if ((reg = getreg(&(*fxtr).line.chars[(*fxtr).pos])) != -1) {
+		if ((reg = getreg(*fxtr)) != -1) {
 			SETBITS(ic, reg, wordpos);
 			while (NODELIMITER(*fxtr))
 				(*fxtr).pos++;
@@ -583,7 +590,7 @@ int countwords(Fextr *fxtr, int ic, int wordpos) {
 
 		return 1;
 	}
-	if ((reg = getreg(&(*fxtr).line.chars[(*fxtr).pos])) != -1) {
+	if ((reg = getreg(*fxtr)) != -1) {
 		SETBITS(ic, reg, wordpos);
 		SETBITS(ic, REGADDR, wordpos + ADDR);
 		while (NODELIMITER(*fxtr))
@@ -607,19 +614,20 @@ int setoperand(Fextr fxtr, int ic, int next, FILE *extfp) {
 		return next + 1;
 	}
 
-	if (!REGISTERINSTR(fxtr))
+	if (!REGISTER(fxtr))
 		setaddress(fxtr, ic, next++, extfp);
 
 	while ((NODELIMITER(fxtr)))
 		fxtr.pos++;
-	
+	WHITESPACES(fxtr)
+
 	if (fxtr.line.chars[fxtr.pos++] == '{') {
-		if (REGISTERINSTR(fxtr))
+		if (REGISTER(fxtr))
 			return next;
 
 		if (fxtr.line.chars[fxtr.pos] == '*') {
-			setaddress(fxtr, ic, next, extfp);
-			return next + 1;
+			setaddress(fxtr, ic, next++, extfp);
+			return next;
 		}
 		IC[ic + next].bits = getnumber(&fxtr);
 		IC[ic + next].link = absolute;
@@ -668,7 +676,7 @@ void setaddress(Fextr fxtr, int ic, int next, FILE *extfp) {
 
 int getnumber(Fextr *fxtr) {
 	String number;
-	int i = 0;
+	int num, i = 0;
 
 	if ((*fxtr).line.chars[(*fxtr).pos] == '+' || (*fxtr).line.chars[(*fxtr).pos] == '-')
 		number.chars[i++] = (*fxtr).line.chars[(*fxtr).pos++];
@@ -680,8 +688,13 @@ int getnumber(Fextr *fxtr) {
 		EXIT(*fxtr, "invalid number input")
 	}
 	number.chars[i] = '\0';
-
-	return  atoi(number.chars);
+	num = atoi(number.chars);
+	if (fabs(num) > MASK / 2){
+		(*fxtr).pos -= i;
+		EXIT(*fxtr, "usage - number out of range")
+	}
+	
+	return  num & MASK;
 }
 
 
@@ -700,18 +713,12 @@ void verifylabels(Fextr fxtr) {
 		for (j = 0; opcode[j]; j++)
 			if (!strcmp(ltbl[i].name, opcode[j]))
 				LABELEXIT("invalid name\n", fxtr.filename.chars, ltbl[i].name)
-
-		if (REGISTER(ltbl[i].name))
-			LABELEXIT("invalid name\n", fxtr.filename.chars, ltbl[i].name)
 	}
 
 	for (i = 0; !emptylabel(extltbl[i]) && i < MAXLENGTH; i++) {
 		for (j = 0; opcode[j]; j++)
 			if (!strcmp(extltbl[i].name, opcode[j]))
 				LABELEXIT("invalid name\n", fxtr.filename.chars, extltbl[i].name)
-
-		if (REGISTER(extltbl[i].name))
-			LABELEXIT("invalid name\n", fxtr.filename.chars, extltbl[i].name)
 	}
 }
 

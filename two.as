@@ -1,27 +1,12 @@
-        .entry  STRADD
-	.entry	MAIN
-   	.extern REVERSE
-	.extern	PRTSTR
-	.extern COUNT
-
-
-STRADD: 	.data	 	123
-STR: 		.string 	"abcdef"
-LASTCHAR: 	.data 		0
-LEN:		.data 		0
-k: 		.data		0
-
-
-
-MAIN:	lea/0,0 STR{*LEN}, STRADD
-	jsr /0,0 COUNT
-	jsr /0,0 PRTSTR
-	mov/1/1/0,0 STRADD{5}, LASTCHAR {r3}
-	mov/1/1/1,0 STR{7}, r7
-	add/0,0 COUNT{*k},r3
-	dec/1/1/1,0	LASTCHAR{*k}
-	inc/0,1 k
-	jsr /0,0 REVERSE
-	jsr /0,0 PRTSTR
-	stop/0,0
-
+MAIN: mov/0,0 LENGTH, r1
+	lea/1/1/1,0 STR{*LENGTH}, r4
+LOOP: jmp/1/0/0,0 END
+	prn/1/1/0 ,0 STR{r3}
+	sub/0,0 #1, r1
+	inc/0,0 r0
+	mov/0,1 r3,STR{7}
+	bne/0,0 LOOP
+END: stop/0,0
+STR: .string "abcdef"
+LENGTH: .data 6
+K: .data 2
