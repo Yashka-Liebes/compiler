@@ -1,3 +1,7 @@
+/* the program is key sensitive */
+
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +11,7 @@
 #include "label.h"
 #include "string.h"
 #include "fextract.h"
+
 
 
 #define COMB    	0
@@ -124,6 +129,38 @@
 }
 
 
+#define OPENFILES {																	\
+	String fname, obfname, entfname, extfname;										\
+																					\
+	fname = obfname = entfname = extfname = tostring(*nextf);						\
+																					\
+	fp = fopen(strcat(fname.chars, ".as"), "r");									\
+	obfp = 	fopen(strcat(obfname.chars, ".ob"), "w");								\
+	entfp = fopen(strcat(entfname.chars, ".ent"), "w");								\
+	extfp = fopen(strcat(extfname.chars, ".ext"), "w");								\
+																					\
+	if (!fp) {																		\
+		printf("assembler: could not open ro file %s\n", fname.chars);				\
+		compilenext();																\
+	}																				\
+																					\
+	if (!obfp) {																	\
+		printf("assembler: could not open writable file %s\n", obfname.chars);		\
+		compilenext();																\
+	}																				\
+																					\
+	if (!entfp) {																	\
+		printf("assembler: could not open writable file %s\n", entfname.chars);		\
+		compilenext();																\
+	}																				\
+																					\
+	if (!extfp) {																	\
+		printf("assembler: could not open writable file %s\n", extfname.chars);		\
+		compilenext();																\
+	}																				\
+}
+
+
 #define CLOSEFILES	{	\
 	fclose(fp);			\
 	fclose(obfp);		\
@@ -163,7 +200,6 @@ int countlabelwords(int ic, Fextr *fxtr, int wordpos);
 int countwords(Fextr *fxtr, int ic, int wordpos);
 int setoperand(Fextr fxtr, int ic, int next, FILE *extfp);
 int getnumber(Fextr *fxtr);
-void openfiles();
 
 
 
@@ -181,6 +217,7 @@ struct {
 const char *opcode[] = {"mov", "cmp", "add", "sub", "not", "clr", "lea", "inc",
 								"dec", "jmp", "bne", "red", "prn", "jsr", "rts", "stop", 0};
 
+
 const char *registers[] = {"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
 							"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", 0};
 
@@ -188,9 +225,9 @@ const char *registers[] = {"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
 
 Word IC[MAXLENGTH];
 Label ltbl[MAXLENGTH], extltbl[MAXLENGTH];
+FILE *fp, *obfp, *entfp, *extfp;
 int DC[MAXLENGTH];
 char **nextf;
-FILE *fp, *obfp, *entfp, *extfp;
 
 
 
@@ -208,7 +245,7 @@ void compilenext() {
 		return;
 
 	init();
-	openfiles();
+	OPENFILES;
 	secondpass(firstpass());
 	CLOSEFILES
 
@@ -308,8 +345,8 @@ void secondpass(int dc) {
 }
 
 int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
-	int i, temp;
 	String direct;
+	int i, temp;
 
 	fxtr.pos++;
 	temp = gettoken(fxtr.line, fxtr.pos, &direct, ' ', '\t', AFTERLAST);
@@ -372,8 +409,8 @@ int getstring(int *labelc, Fextr fxtr, int dc) {
 }
 
 void getentry(Fextr fxtr, FILE *entfp) {
-	int i, temp;
 	String label;
+	int i, temp;
 
 	fxtr.pos++;
 	fxtr.pos += gettoken(fxtr.line, fxtr.pos, &label, ' ', '\t', AFTERLAST);
@@ -698,9 +735,8 @@ int getnumber(Fextr *fxtr) {
 	while (isdigit((*fxtr).line.chars[(*fxtr).pos]))
 		number.chars[i++] = (*fxtr).line.chars[(*fxtr).pos++];
 
-	if (!(i && isdigit(number.chars[i - 1]))) {
+	if (!(i && isdigit(number.chars[i - 1])))
 		EXIT(*fxtr, "invalid number input")
-	}
 
 	number.chars[i] = '\0';
 	num = atoi(number.chars);
@@ -734,36 +770,6 @@ void verifylabels(Fextr fxtr) {
 		for (j = 0; opcode[j]; j++)
 			if (!strcmp(extltbl[i].name, opcode[j]))
 				LABELEXIT("invalid name\n", fxtr.filename.chars, extltbl[i].name)
-}
-
-void openfiles() {
-	String fname, obfname, entfname, extfname;
-	fname = obfname = entfname = extfname = tostring(*nextf);
-
-	fp = fopen(strcat(fname.chars, ".as"), "r");
-	obfp = 	fopen(strcat(obfname.chars, ".ob"), "w");
-	entfp = fopen(strcat(entfname.chars, ".ent"), "w");
-	extfp = fopen(strcat(extfname.chars, ".ext"), "w");
-
-	if (!fp) {
-		printf("assembler: could not open ro file %s\n", fname.chars);
-		compilenext();
-	}
-
-	if (!obfp) {
-		printf("assembler: could not open writable file %s\n", obfname.chars);
-		compilenext();
-	}
-
-	if (!entfp) {
-		printf("assembler: could not open writable file %s\n", entfname.chars);
-		compilenext();
-	}
-
-	if (!extfp) {
-		printf("assembler: could not open writable file %s\n", extfname.chars);
-		compilenext();
-	}
 }
 
 
