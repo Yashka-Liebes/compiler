@@ -6,12 +6,12 @@
 #include "string.h"
 
 
-
+/* this struct will contain information that was extracted from the assembly file */
 typedef struct {
-	String line;
+	String line;		/* the current line */
 	String filename;
-	int pos;
-	int linec;
+	int pos;			/* current position in the line */
+	int linec;			/* line counter */
 } Fextr;
 
 

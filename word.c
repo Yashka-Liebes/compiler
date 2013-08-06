@@ -4,6 +4,7 @@
 
 /* function prototype */
 static int power(int x, int y);
+static int abs(int n);
 
 
 
@@ -18,7 +19,7 @@ Word initword() {
 }
 
 int setbits(int val, int pos) {
-	return val * (int) power(2, pos);
+	return val * (int) power(2, abs(pos));
 }
 
 static int power(int x, int y) {
@@ -28,5 +29,8 @@ static int power(int x, int y) {
 	return x * power(x, y - 1);
 }
 
+static int abs(int n) {
+	return n < 0 ? -n : n;
+}
 
 

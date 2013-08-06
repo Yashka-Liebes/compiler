@@ -1,4 +1,5 @@
-/* the program is key sensitive */
+/* the program is key sensitive, for example label K and k are two different labels */
+/*  */
 
 
 
@@ -44,15 +45,17 @@
 #define NUMBEROFREGS		8
 
 
-#define WHITESPACES(f)	for(; EMPTY(f); (f).pos++);
+#define WHITESPACES(f)	while(EMPTY(f)) (f).pos++;
 
 #define REGISTER(f) (getreg(f) != -1)
 
+/* macro for skipping white spaces */
 #define EMPTY(f) ((f).line.chars[(f).pos] == ' ' || (f).line.chars[(f).pos] == '\t')
 
 #define SETBITS(ic, val, pos) IC[ic].bits |= setbits(val, pos)
 
 
+/* macro for pointing the place of an error in the assembly file */
 #define MARK(f) {										\
 	int k;												\
 														\
@@ -78,6 +81,7 @@
 
 #define EXPECTCHAR(f, c) {																						\
 	WHITESPACES(f)																								\
+																												\
 	if ((f).line.chars[(f).pos++] != c)	{																		\
 		(f).pos--;																								\
 		if (c == '\n')																							\
@@ -93,6 +97,7 @@
 		compilenext();																							\
 		exit(1);																								\
 	}																											\
+																												\
 	WHITESPACES(f)																								\
 }
 
@@ -107,6 +112,7 @@
 		;															\
 																	\
 	(f).pos = (f).line.chars[(f).pos] == ':' ? (f).pos + 1 : 0;		\
+																	\
 	WHITESPACES(f)
 
 
@@ -129,35 +135,32 @@
 }
 
 
-#define OPENFILES {																	\
-	String fname, obfname, entfname, extfname;										\
-																					\
-	fname = obfname = entfname = extfname = tostring(*nextf);						\
-																					\
-	fp = fopen(strcat(fname.chars, ".as"), "r");									\
-	obfp = 	fopen(strcat(obfname.chars, ".ob"), "w");								\
-	entfp = fopen(strcat(entfname.chars, ".ent"), "w");								\
-	extfp = fopen(strcat(extfname.chars, ".ext"), "w");								\
-																					\
-	if (!fp) {																		\
-		printf("assembler: could not open ro file %s\n", fname.chars);				\
-		compilenext();																\
-	}																				\
-																					\
-	if (!obfp) {																	\
-		printf("assembler: could not open writable file %s\n", obfname.chars);		\
-		compilenext();																\
-	}																				\
-																					\
-	if (!entfp) {																	\
-		printf("assembler: could not open writable file %s\n", entfname.chars);		\
-		compilenext();																\
-	}																				\
-																					\
-	if (!extfp) {																	\
-		printf("assembler: could not open writable file %s\n", extfname.chars);		\
-		compilenext();																\
-	}																				\
+#define OPENFILES {																		\
+	String fname, obfname, entfname, extfname;											\
+																						\
+	fname = obfname = entfname = extfname = tostring(*assemblyfile);					\
+																						\
+	fp = fopen(strcat(fname.chars, ".as"), "r");										\
+	obfp = 	fopen(strcat(obfname.chars, ".ob"), "w");									\
+	entfp = fopen(strcat(entfname.chars, ".ent"), "w");									\
+	extfp = fopen(strcat(extfname.chars, ".ext"), "w");									\
+																						\
+	if (!fp || !obfp || !entfp || !extfp) {												\
+		if (!fp)																		\
+			printf("assembler: could not open ro file %s\n", fname.chars);				\
+																						\
+		if (!obfp)																		\
+			printf("assembler: could not open writable file %s\n", obfname.chars);		\
+																						\
+		if (!entfp)																		\
+			printf("assembler: could not open writable file %s\n", entfname.chars);		\
+																						\
+		if (!extfp)																		\
+			printf("assembler: could not open writable file %s\n", extfname.chars);		\
+																						\
+		REMOVEFILES																		\
+		compilenext();																	\
+	}																					\
 }
 
 
@@ -169,12 +172,12 @@
 }
 
 
-#define REMOVEFILES	{										\
-	String obfname, entfname, extfname;						\
-	obfname = entfname = extfname = tostring(*nextf);		\
-	remove(strcat(obfname.chars, ".ob"));					\
-	remove(strcat(entfname.chars, ".ent"));					\
-	remove(strcat(extfname.chars, ".ext"));					\
+#define REMOVEFILES	{											\
+	String obfname, entfname, extfname;							\
+	obfname = entfname = extfname = tostring(*assemblyfile);	\
+	remove(strcat(obfname.chars, ".ob"));						\
+	remove(strcat(entfname.chars, ".ent"));						\
+	remove(strcat(extfname.chars, ".ext"));						\
 }
 
 
@@ -219,7 +222,7 @@ const char *opcode[] = {"mov", "cmp", "add", "sub", "not", "clr", "lea", "inc",
 
 
 const char *registers[] = {"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
-							"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", 0};
+								"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", 0};
 
 
 
@@ -227,21 +230,21 @@ Word IC[MAXLENGTH];
 Label ltbl[MAXLENGTH], extltbl[MAXLENGTH];
 FILE *fp, *obfp, *entfp, *extfp;
 int DC[MAXLENGTH];
-char **nextf;
+char **assemblyfile;	/* pointer to the current assembly file that was passed thru the command line */
 
 
 
 int main(int argc, char *argv[]) {
 
-	nextf = argv;
+	assemblyfile = argv;
 	compilenext();
 
 	return 0;
 }
 
 void compilenext() {
-	nextf++;
-	if (*nextf == NULL)
+	assemblyfile++;
+	if (*assemblyfile == NULL)
 		return;
 
 	init();
@@ -267,7 +270,7 @@ int firstpass() {
 	int ic, dc, labelc, extlabelc, i;
 	
 	fxtr = initfextr();
-	fxtr.filename = tostring(*nextf);
+	fxtr.filename = tostring(*assemblyfile);
 
 	for (extlabelc = labelc = ic = dc = 0; getline(&(fxtr.line), fp) != EOF; fxtr.line = initstring(), fxtr.linec++) {
 		fxtr.pos =  0;
@@ -284,7 +287,7 @@ int firstpass() {
 		}
 	}
 
-	for (i = 0; !emptylabel(ltbl[i]); i++)
+	for (i = 0; !isemptylabel(ltbl[i]); i++)
 		ltbl[i].address += BEGINNING + ic * !(ltbl[i].mark);
 
 	verifylabels(fxtr);
@@ -297,7 +300,7 @@ void secondpass(int dc) {
 	int ic, i, next;
 
 	fxtr = initfextr();
-	fxtr.filename = tostring(*nextf);
+	fxtr.filename = tostring(*assemblyfile);
 	fseek(fp, 0L, SEEK_SET);
 
 	for (ic = 0; getline(&fxtr.line, fp) != EOF; fxtr.line = initstring(), fxtr.linec++) {
@@ -344,6 +347,7 @@ void secondpass(int dc) {
 		fprintf(obfp, "%o\t%07o\n", i + ic + BEGINNING, DC[i]);
 }
 
+/* get the direction from the assembly file: .data, .string or .extern */
 int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
 	String direct;
 	int i, temp;
@@ -365,11 +369,12 @@ int getdirect(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
 	return (*(directionarr[i].func))(labelc, fxtr, dc, extlabelc);
 }
 
+/* function that deals with .data line in the assembly file */
 int getdata(int *labelc, Fextr fxtr, int dc) {
 	WHITESPACES(fxtr)
 
 	ltbl[*labelc] = getlabel(fxtr, 1, dc, data);
-	if (!emptylabel(ltbl[*labelc]))
+	if (!isemptylabel(ltbl[*labelc]))
 		(*labelc)++;
 
 	for (; fxtr.line.chars[fxtr.pos] != '\n' && fxtr.pos < DIRECTIONMAXSIZE; dc++) {
@@ -389,9 +394,10 @@ int getdata(int *labelc, Fextr fxtr, int dc) {
 	return dc;
 }
 
+/* function that deals with .string line in the assembly file */
 int getstring(int *labelc, Fextr fxtr, int dc) {
 	ltbl[*labelc] = getlabel(fxtr, 1, dc, data);
-	if (!emptylabel(ltbl[*labelc]))
+	if (!isemptylabel(ltbl[*labelc]))
 		(*labelc)++;
 
 	WHITESPACES(fxtr)
@@ -408,6 +414,7 @@ int getstring(int *labelc, Fextr fxtr, int dc) {
 	return dc;
 }
 
+/* function that deals with .entry line in the assembly file */
 void getentry(Fextr fxtr, FILE *entfp) {
 	String label;
 	int i, temp;
@@ -420,10 +427,10 @@ void getentry(Fextr fxtr, FILE *entfp) {
 
 		temp = gettoken(fxtr.line, fxtr.pos, &label, ' ', '\t', '\n', AFTERLAST);
 
-		for (i = 0; !emptylabel(ltbl[i]) && strcmp(label.chars, ltbl[i].name); i++)
+		for (i = 0; !isemptylabel(ltbl[i]) && strcmp(label.chars, ltbl[i].name); i++)
 			;
 		
-		if (!emptylabel(ltbl[i]))
+		if (!isemptylabel(ltbl[i]))
 			fprintf(entfp, "%s\t%o\n", ltbl[i].name, ltbl[i].address);
 		else
 			EXIT(fxtr, "label not found")
@@ -433,6 +440,7 @@ void getentry(Fextr fxtr, FILE *entfp) {
 	}
 }
 
+/* function that deals with .extern line in the assembly file */
 int getextern(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
 	Label tmp;
 
@@ -440,7 +448,7 @@ int getextern(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
 
 	tmp = getlabel(fxtr, 0, EXTERNAL, data);
 
-	if (emptylabel(tmp))
+	if (isemptylabel(tmp))
 		EXIT(fxtr, "label exceeds maximum size or followed by junk")
 
 	extltbl[(*extlabelc)++]  = tmp;
@@ -451,7 +459,7 @@ int getextern(int *labelc, Fextr fxtr, int dc, int *extlabelc) {
 Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark) {
 	Label lbl;
 	String name;
-	int must, temp;
+	int must, tokenlength;
 
 	if ((labelflag && mark == data) || !labelflag)
 		must = 1;
@@ -460,7 +468,7 @@ Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark) {
 
 	fxtr.pos *=  !labelflag;
 
-	temp = gettoken(fxtr.line, fxtr.pos, &name, ' ', '\t', '{', '}', ':', ',', '\n', AFTERLAST);
+	tokenlength = gettoken(fxtr.line, fxtr.pos, &name, ' ', '\t', '{', '}', ':', ',', '\n', AFTERLAST);
 	tocharptr(name, lbl.name, NAMELENGTH);
 
 	if (REGISTER(fxtr))
@@ -471,13 +479,13 @@ Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark) {
 
 	WHITESPACES(fxtr)
 
-	if (must && emptylabel(lbl))
+	if (must && isemptylabel(lbl))
 		EXIT(fxtr, "label expected")
 
 	if (lbl.name[0] && !isalpha(lbl.name[0]))
 		EXIT(fxtr, "illegal first char in label")
 
-	fxtr.pos += temp;
+	fxtr.pos += tokenlength;
 	if ((labelflag && fxtr.line.chars[fxtr.pos] == ':') || (!labelflag && fxtr.line.chars[fxtr.pos] == '\n'))
 		return lbl;
 
@@ -486,13 +494,13 @@ Label getlabel(Fextr fxtr, int labelflag, int address, Mark mark) {
 
 int getinstruction(int *labelc, Fextr fxtr, int ic) {
 	String command;
-	int i, l;
+	int i, numofwords = 0, tokenlength;
 
 	ltbl[*labelc] = getlabel(fxtr, 1, ic, code);
-	if (!emptylabel(ltbl[*labelc]))
+	if (!isemptylabel(ltbl[*labelc]))
 		(*labelc)++;
 
-	l = gettoken(fxtr.line, fxtr.pos, &command, ' ', '\t', '/', '\n', AFTERLAST);
+	tokenlength = gettoken(fxtr.line, fxtr.pos, &command, ' ', '\t', '/', '\n', AFTERLAST);
 
 	for (i = 0; opcode[i] && strcmp(opcode[i], command.chars); i++)
 		;
@@ -500,7 +508,7 @@ int getinstruction(int *labelc, Fextr fxtr, int ic) {
 	if (!opcode[i])
 		EXIT(fxtr, "command not found")
 
-	fxtr.pos += l;
+	fxtr.pos += tokenlength;
 	SETBITS(ic, i, OPCODE);
 	EXPECTCHAR(fxtr, '/')
 
@@ -516,25 +524,23 @@ int getinstruction(int *labelc, Fextr fxtr, int ic) {
 	SETBITS(ic, fxtr.line.chars[fxtr.pos++] - ASCIIZERO, DBL);
 	WHITESPACES(fxtr)
 
-	l = 0;
-
 	if (i < RTS && i != LEA && i >= NOT)
-		l = countwords(&fxtr, ic, DESTINATION);
+		numofwords = countwords(&fxtr, ic, DESTINATION);
 
 	if (i < NOT || i == LEA) {
-		l = countwords(&fxtr, ic, ORIGIN);
+		numofwords = countwords(&fxtr, ic, ORIGIN);
 
 		while (fxtr.line.chars[fxtr.pos] != ',' && fxtr.line.chars[fxtr.pos] != '\n')
 			fxtr.pos++;
 
 		EXPECTCHAR(fxtr, ',')
-		l += countwords(&fxtr, ic, DESTINATION);
+		numofwords += countwords(&fxtr, ic, DESTINATION);
 	}
 
 	EXPECTCHAR(fxtr, '\n')
 	IC[ic].link = absolute;
 
-	return ++ic + l;
+	return ic + 1 + numofwords;
 }
 
 /* getline: read a line into String s, return number of characters that were read or EOF */
@@ -704,10 +710,10 @@ void setaddress(Fextr fxtr, int ic, int next, FILE *extfp) {
 	}
 
 	gettoken(fxtr.line, fxtr.pos, &label, ' ', '\t', '\n', '{', '}', ':', ',', AFTERLAST);
-	for (i = 0; i < MAXLENGTH && !emptylabel(ltbl[i]) && strcmp(label.chars, ltbl[i].name); i++)
+	for (i = 0; i < MAXLENGTH && !isemptylabel(ltbl[i]) && strcmp(label.chars, ltbl[i].name); i++)
 		;
 
-	if (i < MAXLENGTH && !emptylabel(ltbl[i])) {
+	if (i < MAXLENGTH && !isemptylabel(ltbl[i])) {
 		IC[ic + next].bits = ltbl[i].address - starflag * (ic + BEGINNING);
 		IC[ic + next].link = (!starflag) * relocatable + starflag * absolute;
 	}
@@ -715,7 +721,7 @@ void setaddress(Fextr fxtr, int ic, int next, FILE *extfp) {
 		for (i = 0; i < MAXLENGTH && *extltbl[i].name && strcmp(label.chars, extltbl[i].name); i++)
 			;
 
-		if (i < MAXLENGTH && !emptylabel(extltbl[i])) {
+		if (i < MAXLENGTH && !isemptylabel(extltbl[i])) {
 			IC[ic + next].bits = 0;
 			IC[ic + next].link = external;
 			fprintf(extfp, "%s\t%o\n", extltbl[i].name, BEGINNING + ic + next);
@@ -752,12 +758,12 @@ int getnumber(Fextr *fxtr) {
 void verifylabels(Fextr fxtr) {
 	int i, j;
 
-	for (i = 0; !emptylabel(ltbl[i]) && i < MAXLENGTH; i++) {
-		for (j = i + 1; !emptylabel(ltbl[j]) && j < MAXLENGTH; j++)
+	for (i = 0; !isemptylabel(ltbl[i]) && i < MAXLENGTH; i++) {
+		for (j = i + 1; !isemptylabel(ltbl[j]) && j < MAXLENGTH; j++)
 			if (!strcmp(ltbl[i].name, ltbl[j].name))
 				LABELEXIT("double declaration\n", fxtr.filename.chars, ltbl[i].name)
 				
-		for (j = 0; !emptylabel(extltbl[j]) && j < MAXLENGTH; j++)
+		for (j = 0; !isemptylabel(extltbl[j]) && j < MAXLENGTH; j++)
 			if (!strcmp(ltbl[i].name, extltbl[j].name))
 				LABELEXIT("double declaration\n", fxtr.filename.chars, ltbl[i].name)
 				
@@ -766,12 +772,8 @@ void verifylabels(Fextr fxtr) {
 				LABELEXIT("invalid name\n", fxtr.filename.chars, ltbl[i].name)
 	}
 
-	for (i = 0; !emptylabel(extltbl[i]) && i < MAXLENGTH; i++)
+	for (i = 0; !isemptylabel(extltbl[i]) && i < MAXLENGTH; i++)
 		for (j = 0; opcode[j]; j++)
 			if (!strcmp(extltbl[i].name, opcode[j]))
 				LABELEXIT("invalid name\n", fxtr.filename.chars, extltbl[i].name)
 }
-
-
-
-

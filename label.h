@@ -22,7 +22,7 @@ extern const Label EMPTYLABEL;
 
 
 Label initlabel();
-int emptylabel(Label l);
+int isemptylabel(Label l);
 
 
 
