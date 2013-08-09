@@ -1,5 +1,4 @@
-/* the program is key sensitive, for example label K and k are two different labels */
-/*  */
+/* the program is key sensitive, for example labels K and k are two different labels */
 
 
 
@@ -45,7 +44,6 @@
 #define NUMBEROFREGS		8
 
 
-#define WHITESPACES(f)	while(EMPTY(f)) (f).pos++;
 
 #define REGISTER(f) (getreg(f) != -1)
 
@@ -55,7 +53,11 @@
 #define SETBITS(ic, val, pos) IC[ic].bits |= setbits(val, pos)
 
 
-/* macro for pointing the place of an error in the assembly file */
+#define WHITESPACES(f)	while(EMPTY(f))	\
+							(f).pos++;
+
+
+/* macro for pointing the place of an error in the assembly file with - '^' sign, underneath the line */
 #define MARK(f) {										\
 	int k;												\
 														\
