@@ -6,7 +6,7 @@
 ;
 ;
 STRADD: 	.data	 	123
-STR: 		.string 	"abcdef"
+STR: 		.string 	"abc def"
 LASTCHAR: 	.data 		0
 LEN:		.data 		0
 k: 		.data		0
